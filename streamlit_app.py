@@ -1,61 +1,56 @@
 import numpy as np
 import cv2
-import tensorflow as tf
 import streamlit as st
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import img_to_array
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 
-# for better result use highe quality camera which enough light at place.
+# Load the emotion detection model
+emotion_dict = ["Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surprise"]
+classifier = load_model('emotion_detection_model.h5')
 
-model = tf.keras.models.load_model('emotion_detection_model.h5')
-emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy", 4: "Neutral", 5: "Sad", 6: "Surprised"}
+# Load face cascade
+try:
+    face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+except Exception:
+    st.write("Error loading cascade classifiers")
 
-# Function to perform emotion detection on an image
-def detect_emotion(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
+class VideoTransformer(VideoTransformerBase):
+    def transform(self, frame):
+        img = frame.to_ndarray(format="bgr24")
 
-    for (x, y, w, h) in faces:
-        cv2.rectangle(image, (x, y-50), (x+w, y+h+10), (255, 0, 0), 2)
-        roi_gray = gray[y:y + h, x:x + w]
-        cropped_img = np.expand_dims(np.expand_dims(cv2.resize(roi_gray, (48, 48)), -1), 0)
-        prediction = model.predict(cropped_img)
-        maxindex = int(np.argmax(prediction))
-        emotion_text = emotion_dict[maxindex]
-        cv2.putText(image, emotion_text, (x+20, y-60), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 0), 3, cv2.LINE_AA)
+        # Convert image to grayscale
+        img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    return image
+        # Detect faces
+        faces = face_cascade.detectMultiScale(
+            image=img_gray, scaleFactor=1.3, minNeighbors=5)
 
-# Streamlit application
+        for (x, y, w, h) in faces:
+            cv2.rectangle(img=img, pt1=(x, y), pt2=(
+                x + w, y + h), color=(255, 0, 0), thickness=2)
+            roi_gray = img_gray[y:y + h, x:x + w]
+            roi_gray = cv2.resize(roi_gray, (48, 48), interpolation=cv2.INTER_AREA)
+
+            if np.sum([roi_gray]) != 0:
+                roi = roi_gray.astype('float') / 255.0
+                roi = img_to_array(roi)
+                roi = np.expand_dims(roi, axis=0)
+                prediction = classifier.predict(roi)[0]
+                maxindex = int(np.argmax(prediction))
+                finalout = emotion_dict[maxindex]
+                output = str(finalout)
+
+            label_position = (x, y)
+            cv2.putText(img, output, label_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+        return img
+
 def main():
-    st.title("Emotion Detection App")
-
-    # Button to start the app
-    start_button = st.button("Start")
-
-    if start_button:
-        # Open webcam
-        cap = cv2.VideoCapture(0)
-
-        # Display the webcam feed using st.video
-        video_placeholder = st.empty()
-        stop_button = st.button("Stop")
-
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            # Perform emotion detection on each frame
-            emotion_image = detect_emotion(frame)
-
-            # Update the displayed video feed
-            video_placeholder.image(emotion_image, channels="BGR", use_column_width=True)
-
-            # Break the loop if the user clicks the "Stop" button
-            if stop_button:
-                cap.release()
-                video_placeholder.empty()
-                st.stop()
+    st.title("Real Time Face Emotion Detection Application")
+    st.header("Webcam Live Feed")
+    st.write("Click on start to use the webcam and detect your face emotion")
+    webrtc_streamer(key="example", video_transformer_factory=VideoTransformer)
 
 if __name__ == "__main__":
     main()
