@@ -3,7 +3,7 @@ import cv2
 import streamlit as st
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
 
 # Load the emotion detection model
 emotion_dict = ["Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surprise"]
@@ -47,10 +47,17 @@ class VideoTransformer(VideoTransformerBase):
         return img
 
 def main():
-    st.title("Real Time Face Emotion Detection Application")
-    st.header("Webcam Live Feed")
-    st.write("Click on start to use the webcam and detect your face emotion")
-    webrtc_streamer(key="example", video_processor_factory=VideoTransformer)
+    st.title("Emotion detection Webcam")
+
+    rtc_configuration = RTCConfiguration(
+        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}], "audio": False}
+    )
+
+    webrtc_streamer(
+        key="example",
+        video_processor_factory=VideoTransformer,
+        rtc_configuration=rtc_configuration,
+    )
 
 if __name__ == "__main__":
     main()
