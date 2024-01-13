@@ -4,3 +4,9 @@ opencv-python-headless
 tensorflow==2.12.0
 matplotlib==3.7.1
 Pillow==9.4.0
+Keras>=2.4.3
+streamlit-webrtc==0.47.1
+tensorflow-cpu
+
+
+
